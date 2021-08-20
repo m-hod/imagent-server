@@ -19,9 +19,8 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::middleware('auth:api')->group(function () {
-    Route::get('tag/{tag}', [TagController::class, 'index']);
-    Route::post('tag', [TagController::class, 'store']);
-    Route::put('tag/{tag}', [TagController::class, 'update']);
-    Route::delete('tag/{tag}', [TagController::class, 'destroy']);
+Route::middleware(['verified'])->group(function () {
+    Route::get('user/tags', [TagController::class, 'index']);
+    Route::post('user/tag', [TagController::class, 'store']);
+    Route::delete('user/tag/{tag}', [TagController::class, 'destroy']);
 });
