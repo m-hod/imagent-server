@@ -6,11 +6,8 @@ use App\Models\Tag;
 use App\Models\User;
 use App\Models\UserTag;
 use App\Services\Common\Utils;
-use Faker\Factory;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
-use Laravel\Fortify\Fortify;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -86,5 +83,11 @@ class AuthTest extends TestCase
         $this->actingAs($this->user)->deleteJson("api/user/tag/{$tags->last()->id}")->assertSuccessful();
         $this->assertEmpty(UserTag::where('user_id', $user->id)->where('tag_id', $lastTagId)->get());
         $this->assertNotEmpty(Tag::find($lastTagId));
+    }
+
+    public function test_get_image() {
+        $this->actingAs($this->user)->postJson("api/user/image", [
+            'image' => new UploadedFile(resource_path('test-files/p07ryyyj.jpg'), 'p07ryyyj.jpg', null, null, true)
+        ])->assertSuccessful();
     }
 }

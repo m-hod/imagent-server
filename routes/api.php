@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ImageController;
 use App\Http\Controllers\TagController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -23,4 +24,7 @@ Route::middleware(['verified'])->group(function () {
     Route::get('user/tags', [TagController::class, 'index']);
     Route::post('user/tag', [TagController::class, 'store']);
     Route::delete('user/tag/{tag}', [TagController::class, 'destroy']);
+
+    Route::get('user/images', [ImageController::class, 'index']);
+    Route::post('user/image', [ImageController::class, 'store']);
 });
