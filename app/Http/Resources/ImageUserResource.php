@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Config;
 
 class ImageUserResource extends JsonResource
 {
@@ -14,8 +15,10 @@ class ImageUserResource extends JsonResource
      */
     public function toArray($request)
     {
+        $baseUrl = config('filesystems.disks.digitalocean.endpoint');
+
         return [
-            'url' => $this->image
+            'url' => "{$baseUrl}/imagent/{$this->image->hash}.{$this->image->ext}",
         ];
     }
 }

@@ -44,18 +44,41 @@ class ImageController extends Controller
         ]);
 
         $hash = hash_file('sha1', $request['image']);
-        if(Storage::disk('digitalocean')->exists("imagent/{$hash}")) {
-            dd("already exists");
-        }
-        $extension = $request['image']->extension();
-        $image = Storage::disk('digitalocean')->putFileAs('imagent', new File($request['image']), "{$hash}.{$extension}", 'public');
-        dd($image);
+        $ext = $request['image']->extension();
+        $filename = "{$hash}.{$ext}";
 
-        // store image with hash as url
-        // if tags, check if tag records for them, if not add them (and add them to user)
-        // then add relationships between those tags and the image
-        // return image resource
+        // check if image exists
+        if(Storage::disk('digitalocean')->exists("imagent/{$filename}")) {
+            $image = Image::where('hash', $hash);
+            dd("already exists");
+
+            // check if image exists locally
+            // check if image exists cdn
+            // if one not true, update whatever isnt
+
+        } else {
+            Storage::disk('digitalocean')->putFileAs('imagent', new File($request['image']), $filename, 'public');
+
+            $image = Image::create([
+                'hash' => $hash,
+                'ext' => $ext
+            ]);
+
+            dd($image);
+        }
+
+
+        // if image exists, just retrieve image from db
+        // else store image in cdn, hash in db, then retrieve it
+
+        // then create tags if tags added
+        // and crate assosciation between user and tags
+        // and attach them to image
+        // and create assosciation between user and image
+
+        // return image resource (should be url + user_tags)
     }
+
     // store image and assosciated tags
         //
 

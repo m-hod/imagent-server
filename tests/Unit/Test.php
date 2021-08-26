@@ -8,6 +8,7 @@ use App\Models\UserTag;
 use App\Services\Common\Utils;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -49,7 +50,7 @@ class AuthTest extends TestCase
 
         $response = $this->actingAs($this->user)->postJson('api/user/tag', [
             'tag' => $tagSlug
-        ])->dump()->assertSuccessful();
+        ])->assertSuccessful();
 
         $userTag = $response->decodeResponseJson();
 
@@ -85,7 +86,9 @@ class AuthTest extends TestCase
         $this->assertNotEmpty(Tag::find($lastTagId));
     }
 
-    public function test_get_image() {
+    public function test_create_image() {
+        Storage::fake('digitalocean');
+
         $this->actingAs($this->user)->postJson("api/user/image", [
             'image' => new UploadedFile(resource_path('test-files/p07ryyyj.jpg'), 'p07ryyyj.jpg', null, null, true)
         ])->assertSuccessful();

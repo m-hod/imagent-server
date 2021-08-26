@@ -27,4 +27,6 @@ Route::middleware(['verified'])->group(function () {
 
     Route::get('user/images', [ImageController::class, 'index']);
     Route::post('user/image', [ImageController::class, 'store']);
+    Route::put('user/image/{image}', [ImageController::class, 'update']);
+    Route::delete('user/image/{image}', [ImageController::class, 'delete']);
 });
