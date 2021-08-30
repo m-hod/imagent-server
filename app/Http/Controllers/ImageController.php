@@ -7,8 +7,12 @@ use App\Models\ImageUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Resources\ImageUserResource;
+use App\Models\ImageTag;
+use App\Models\Tag;
+use App\Models\UserTag;
 use Illuminate\Http\File;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class ImageController extends Controller
 {
@@ -23,14 +27,19 @@ class ImageController extends Controller
         // $user = Auth::user();
         // $userImages = ImageUser::where('user_id', $user->id)->get();
 
-        dump(Storage::disk('digitalocean')->files('enim'));
+        dump(Storage::disk('digitalocean')->files('imagent'));
 
         // return ImageUserResource::collection($userImages);
     }
 
     /**
      * POST api/user/image
-     * Store a newly created resource in storage.
+     * Store image in CDN with hash as url name
+     * Store image hash in db
+     * Store user image assosciation
+     * Store any tags added with the image
+     * Store user tag assosciations
+     * Store image tag assosciations
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -43,44 +52,111 @@ class ImageController extends Controller
             'tags.*' => ['sometimes', 'string']
         ]);
 
+        $user = Auth::user();
+
         $hash = hash_file('sha1', $request['image']);
         $ext = $request['image']->extension();
         $filename = "{$hash}.{$ext}";
 
-        // check if image exists
-        if(Storage::disk('digitalocean')->exists("imagent/{$filename}")) {
-            $image = Image::where('hash', $hash);
-            dd("already exists");
+        $image = Image::where('hash', $hash)->first();
 
-            // check if image exists locally
-            // check if image exists cdn
-            // if one not true, update whatever isnt
-
-        } else {
+        // if image doesn't already exist, create it on cdn and database
+        if(!$image) {
             Storage::disk('digitalocean')->putFileAs('imagent', new File($request['image']), $filename, 'public');
 
             $image = Image::create([
                 'hash' => $hash,
                 'ext' => $ext
             ]);
-
-            dd($image);
         }
 
+        // should only do this if doesn't already exist
+        $imageUser = ImageUser::where('user_id', $user->id)->where('image_id', $image->id)->first();
 
-        // if image exists, just retrieve image from db
-        // else store image in cdn, hash in db, then retrieve it
+        if($imageUser) {
+            throw ValidationException::withMessages([
+                'image' => 'Image already in library'
+            ]);
+        }
 
-        // then create tags if tags added
-        // and crate assosciation between user and tags
-        // and attach them to image
-        // and create assosciation between user and image
+        // create user image assosciation
+        ImageUser::create([
+            'user_id' => $user->id,
+            'image_id' => $image->id,
+        ]);
 
-        // return image resource (should be url + user_tags)
+        // if tags
+        $tags = request()->input('tags', []);
+
+        if(count($tags)) {
+            foreach($tags as $_tag) {
+                $tag = Tag::where('tag', $_tag)->first();
+
+                // if tag does not already exist, create it
+                if(!$tag) {
+                    $tag = Tag::create([
+                        'tag' => $_tag
+                    ]);
+                }
+
+                $userTag = UserTag::where('user_id', $user->id)->where('tag_id', $tag->id)->first();
+
+                // if user tag does not already exist, create the assosciation
+                if(!$userTag) {
+                    UserTag::create([
+                        'user_id' => $user->id,
+                        'tag_id' => $tag->id,
+                    ]);
+                }
+
+                $imageTag = ImageTag::where('image_id', $image->id)->where('tag_id', $tag->id)->first();
+
+                if(!$imageTag) {
+                    ImageTag::create([
+                        'image_id' => $image->id,
+                        'tag_id' => $tag->id
+                    ]);
+                }
+            }
+        }
+
+        $image->refresh();
+
+        return new ImageUserResource($image);
     }
 
-    // store image and assosciated tags
-        //
+    /**
+     * DELETE api/user/image/{image}
+     * Remove the specified resource from storage.
+     * Remove user image assosciation
+     * Check if image has any users still assosciated with it
+     * Remove image from cdn if so
+     * Remove image if so
+     * Remove image tags if so
+     *
+     * @param  \App\Models\Image  $image
+     * @return \Illuminate\Http\Response
+     */
+    public function delete(Image $image)
+    {
+        $user = Auth::user();
 
-    // delete image (not tags tho)
+        $imageUser = ImageUser::where('image_id', $image->id)->where('user_id', $user->id)->first();
+        $imageUser->delete();
+
+        $image->refresh();
+
+        $users = $image->users;
+
+        // if image no longer has any users assosciated with it, clean it up
+        if(!$users->count()) {
+            // delete image on cdn
+            Storage::disk('digitalocean')->delete("imagent/{$image->hash}.{$image->ext}");
+
+            // delete image (which also cascade deletes all image tag assosciations)
+            $image->delete();
+        }
+
+        return response()->noContent();
+    }
 }

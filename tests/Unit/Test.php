@@ -2,10 +2,14 @@
 
 namespace Tests\Unit;
 
+use App\Models\Image;
+use App\Models\ImageTag;
+use App\Models\ImageUser;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\UserTag;
 use App\Services\Common\Utils;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -13,6 +17,7 @@ use Tests\TestCase;
 
 class AuthTest extends TestCase
 {
+    use RefreshDatabase;
 
     /** @var User */
     private $user;
@@ -86,11 +91,91 @@ class AuthTest extends TestCase
         $this->assertNotEmpty(Tag::find($lastTagId));
     }
 
+    /**
+     * POST api/user/image
+    */
     public function test_create_image() {
         Storage::fake('digitalocean');
 
-        $this->actingAs($this->user)->postJson("api/user/image", [
-            'image' => new UploadedFile(resource_path('test-files/p07ryyyj.jpg'), 'p07ryyyj.jpg', null, null, true)
+        $upload = new UploadedFile(resource_path('test-files/p07ryyyj.jpg'), 'p07ryyyj.jpg', null, null, true);
+
+        $response = $this->actingAs($this->user)->postJson("api/user/image", [
+            'image' => $upload,
+            'tags' => ['test']
         ])->assertSuccessful();
+
+        $image = $response->decodeResponseJson();
+
+        $baseUrl = config('filesystems.disks.digitalocean.endpoint');
+        $hash = hash_file('sha1', $upload);
+        $ext = $upload->extension();
+
+        $this->assertEquals($image['data']['url'], "{$baseUrl}/imagent/{$hash}.{$ext}");
+        $this->assertEquals($image['data']['tags'][0]['tag'], "test");
+        $this->assertEquals($image['data']['user_tags'][0]['tag'], "test");
+
+        $response = $this->actingAs($this->user)->postJson("api/user/image", [
+            'image' => $upload,
+        ])->assertStatus(422);
+
+        $newUser = User::factory()->create();
+
+        $response = $this->actingAs($newUser)->postJson("api/user/image", [
+            'image' => $upload,
+        ])->assertSuccessful();
+
+        $image = $response->decodeResponseJson();
+        $imageId = $image['data']['id'];
+        $imageUsers = ImageUser::where('image_id', $imageId)->get();
+
+        $this->assertEquals($imageUsers->count(), 2);
+    }
+
+    /**
+     * DELETE api/user/image/{image}
+    */
+    public function test_delete_image()
+    {
+        Storage::fake('digitalocean');
+
+        $upload = new UploadedFile(resource_path('test-files/p07ryyyj.jpg'), 'p07ryyyj.jpg', null, null, true);
+        $response = $this->actingAs($this->user)->postJson("api/user/image", [
+            'image' => $upload,
+            'tags' => ['test']
+        ])->assertSuccessful();
+
+        $image = $response->decodeResponseJson();
+        $imageId = $image['data']['id'];
+
+        $response = $this->actingAs($this->user)->deleteJson("api/user/image/{$imageId}")->dump()->assertSuccessful();
+
+        $hash = hash_file('sha1', $upload);
+        $ext = $upload->extension();
+
+        $this->assertTrue(!Storage::disk('digitalocean')->exists("imagent/{$hash}.{$ext}"));
+
+        $imageTags = ImageTag::where('image_id', $imageId)->get();
+
+        $this->assertEquals($imageTags->count(), 0);
+
+        $this->actingAs($this->user)->postJson("api/user/image", [
+            'image' => $upload,
+        ])->assertSuccessful();
+
+        $newUser = User::factory()->create();
+
+        $response = $this->actingAs($newUser)->postJson("api/user/image", [
+            'image' => $upload,
+        ])->assertSuccessful();
+
+        $image = $response->decodeResponseJson();
+        $imageId = $image['data']['id'];
+
+        $this->actingAs($newUser)->deleteJson("api/user/image/{$imageId}")->dump()->assertSuccessful();
+
+        $image = Image::find($imageId);
+
+        $this->assertNotNull($image);
+        $this->assertTrue(Storage::disk('digitalocean')->exists("imagent/{$hash}.{$ext}"));
     }
 }

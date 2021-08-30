@@ -18,7 +18,10 @@ class ImageUserResource extends JsonResource
         $baseUrl = config('filesystems.disks.digitalocean.endpoint');
 
         return [
-            'url' => "{$baseUrl}/imagent/{$this->image->hash}.{$this->image->ext}",
+            'id' => $this->id,
+            'url' => "{$baseUrl}/imagent/{$this->hash}.{$this->ext}",
+            'user_tags' => $this->getUserTags(),
+            'tags' => $this->tags,
         ];
     }
 }
