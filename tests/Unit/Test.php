@@ -8,6 +8,7 @@ use App\Models\ImageUser;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\UserTag;
+use App\Models\ImageUserTag;
 use App\Services\Common\Utils;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -102,7 +103,7 @@ class AuthTest extends TestCase
         $response = $this->actingAs($this->user)->postJson("api/user/image", [
             'image' => $upload,
             'tags' => ['test']
-        ])->assertSuccessful();
+        ])->dump()->assertSuccessful();
 
         $image = $response->decodeResponseJson();
 
@@ -127,8 +128,12 @@ class AuthTest extends TestCase
         $image = $response->decodeResponseJson();
         $imageId = $image['data']['id'];
         $imageUsers = ImageUser::where('image_id', $imageId)->get();
+        $initialImageUserTags = ImageUserTag::where('image_id', $imageId)->where('user_id', $this->user->id)->get();
+        $newUserImageTagUsers = ImageUserTag::where('image_id', $imageId)->where('user_id', $newUser->id)->get();
 
         $this->assertEquals($imageUsers->count(), 2);
+        $this->assertEquals($initialImageUserTags->count(), 1);
+        $this->assertEquals($newUserImageTagUsers->count(), 1);
     }
 
     /**
@@ -147,7 +152,7 @@ class AuthTest extends TestCase
         $image = $response->decodeResponseJson();
         $imageId = $image['data']['id'];
 
-        $response = $this->actingAs($this->user)->deleteJson("api/user/image/{$imageId}")->dump()->assertSuccessful();
+        $response = $this->actingAs($this->user)->deleteJson("api/user/image/{$imageId}")->assertSuccessful();
 
         $hash = hash_file('sha1', $upload);
         $ext = $upload->extension();
@@ -155,8 +160,10 @@ class AuthTest extends TestCase
         $this->assertTrue(!Storage::disk('digitalocean')->exists("imagent/{$hash}.{$ext}"));
 
         $imageTags = ImageTag::where('image_id', $imageId)->get();
+        $imageUserTags = ImageUserTag::where('image_id', $imageId)->where('user_id', $this->user->id)->get();
 
         $this->assertEquals($imageTags->count(), 0);
+        $this->assertEquals($imageUserTags->count(), 0);
 
         $this->actingAs($this->user)->postJson("api/user/image", [
             'image' => $upload,
@@ -171,7 +178,7 @@ class AuthTest extends TestCase
         $image = $response->decodeResponseJson();
         $imageId = $image['data']['id'];
 
-        $this->actingAs($newUser)->deleteJson("api/user/image/{$imageId}")->dump()->assertSuccessful();
+        $this->actingAs($newUser)->deleteJson("api/user/image/{$imageId}")->assertSuccessful();
 
         $image = Image::find($imageId);
 

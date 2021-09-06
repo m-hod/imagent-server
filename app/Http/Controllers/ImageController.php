@@ -10,6 +10,7 @@ use App\Http\Resources\ImageUserResource;
 use App\Models\ImageTag;
 use App\Models\Tag;
 use App\Models\UserTag;
+use App\Models\ImageUserTag;
 use Illuminate\Http\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -38,8 +39,9 @@ class ImageController extends Controller
      * Store image hash in db
      * Store user image assosciation
      * Store any tags added with the image
-     * Store user tag assosciations
-     * Store image tag assosciations
+     * Store user tag assosciation
+     * Store image tag assosciation
+     * Store image user tag assosciation
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -117,12 +119,62 @@ class ImageController extends Controller
                         'tag_id' => $tag->id
                     ]);
                 }
+
+                $imageUserTag = ImageUserTag::where('image_id', $image->id)->where('tag_id', $tag->id)->where('user_id', $user->id)->first();
+
+                if(!$imageUserTag) {
+                    ImageUserTag::create([
+                        'image_id' => $image->id,
+                        'tag_id' => $tag->id,
+                        'user_id' => $user->id
+                    ]);
+                }
             }
         }
 
         $image->refresh();
 
         return new ImageUserResource($image);
+    }
+
+    /**
+     * PUT api/user/image/{image}
+     * Update the specified resource from storage.
+     * Store any tags added with the image
+     * Store user tag assosciation
+     * Store image tag assosciation
+     * Store image user tag assosciation
+     * Remove any tags on the image that were not included in the params
+     * Remove user tag assosciation if so
+     * Remove image user tag assosciation if so
+     * Check if no other users have tag assosciated with image
+     * Remove image tag if so
+     *
+     * @param  \App\Models\Image  $image
+     * @return \Illuminate\Http\Response
+     */
+    public function update(Request $request, Image $image)
+    {
+        $request->validate([
+            'tags' => ['sometimes', 'array'],
+            'tags.*' => ['sometimes', 'string']
+        ]);
+
+        $tags = request()->input('tags', []);
+
+        $user = Auth::user();
+
+        $imageUserTags = ImageUserTag::where('image_id', $image->id)->where('user_id', $user->id)->get();
+
+        $imageTags = $image->tags;
+
+        // issue:
+        // image can have tags (independent from user)
+        // user can have tags (independent from image)
+        // get the tags the user has assigned to the image (the tags on an image that the user has added)
+        // currently only getting the user tags through the previous two assosciations
+        // need a third pivot table image_user_tag - image_id, user_id, tag_id
+        // then with 2/3 of these, can get third
     }
 
     /**
@@ -133,6 +185,7 @@ class ImageController extends Controller
      * Remove image from cdn if so
      * Remove image if so
      * Remove image tags if so
+     * Remove image user tags if so
      *
      * @param  \App\Models\Image  $image
      * @return \Illuminate\Http\Response
@@ -153,7 +206,7 @@ class ImageController extends Controller
             // delete image on cdn
             Storage::disk('digitalocean')->delete("imagent/{$image->hash}.{$image->ext}");
 
-            // delete image (which also cascade deletes all image tag assosciations)
+            // delete image (which also cascade deletes all image tag / image tag user assosciations)
             $image->delete();
         }
 

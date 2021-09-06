@@ -29,12 +29,18 @@ class Image extends Model
         return $this->hasMany(ImageTag::class);
     }
 
+    public function imageUserTags()
+    {
+        return $this->hasMany(ImageUserTag::class);
+    }
+
     // this is a recommended way to declare event handlers
     public static function boot() {
         parent::boot();
 
         static::deleting(function($image) {
              $image->imageTags()->delete();
+             $image->imageUserTags()->delete();
         });
     }
 
@@ -42,13 +48,19 @@ class Image extends Model
     {
         $user = Auth::user();
 
-        $userTags = UserTag::where('user_id', $user->id)->get();
+        $imageUserTags = ImageUserTag::where('image_id', $this->id)->where('user_id', $user->id)->get();
 
-        $tags = $userTags->transform(function ($value) {
-            return $value->tag;
+        $tagIds = $imageUserTags->transform(function ($value) {
+            return $value->tag_id;
         });
 
-        $tagIds = $tags->pluck("id");
+        // $userTags = UserTag::where('user_id', $user->id)->get();
+
+        // $tags = $userTags->transform(function ($value) {
+        //     return $value->tag;
+        // });
+
+        // $tagIds = $tags->pluck("id");
 
         $imageTags = ImageTag::where('image_id', $this->id)->whereIn('tag_id', $tagIds)->get();
 
