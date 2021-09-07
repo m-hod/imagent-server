@@ -54,18 +54,8 @@ class Image extends Model
             return $value->tag_id;
         });
 
-        // $userTags = UserTag::where('user_id', $user->id)->get();
+        $tags = Tag::whereIn('id', $tagIds)->get();
 
-        // $tags = $userTags->transform(function ($value) {
-        //     return $value->tag;
-        // });
-
-        // $tagIds = $tags->pluck("id");
-
-        $imageTags = ImageTag::where('image_id', $this->id)->whereIn('tag_id', $tagIds)->get();
-
-        return $imageTags->transform(function ($value) {
-            return $value->tag;
-        });
+        return $tags;
     }
 }

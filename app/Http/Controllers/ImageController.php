@@ -164,17 +164,59 @@ class ImageController extends Controller
 
         $user = Auth::user();
 
-        $imageUserTags = ImageUserTag::where('image_id', $image->id)->where('user_id', $user->id)->get();
+        // track tag ids of user tags on image
+        $tagIds = [];
 
-        $imageTags = $image->tags;
+        // add tags if don't already exist
+        foreach($tags as $_tag) {
+            $tag = Tag::where('tag', $_tag)->first();
 
-        // issue:
-        // image can have tags (independent from user)
-        // user can have tags (independent from image)
-        // get the tags the user has assigned to the image (the tags on an image that the user has added)
-        // currently only getting the user tags through the previous two assosciations
-        // need a third pivot table image_user_tag - image_id, user_id, tag_id
-        // then with 2/3 of these, can get third
+            // if tag does not already exist, create it
+            if(!$tag) {
+                $tag = Tag::create([
+                    'tag' => $_tag
+                ]);
+            }
+
+            array_push($tagIds, $tag->id);
+
+            $userTag = UserTag::where('user_id', $user->id)->where('tag_id', $tag->id)->first();
+
+            // if user tag does not already exist, create the assosciation
+            if(!$userTag) {
+                UserTag::create([
+                    'user_id' => $user->id,
+                    'tag_id' => $tag->id,
+                ]);
+            }
+
+            $imageTag = ImageTag::where('image_id', $image->id)->where('tag_id', $tag->id)->first();
+
+            if(!$imageTag) {
+                ImageTag::create([
+                    'image_id' => $image->id,
+                    'tag_id' => $tag->id
+                ]);
+            }
+
+            $imageUserTag = ImageUserTag::where('image_id', $image->id)->where('tag_id', $tag->id)->where('user_id', $user->id)->first();
+
+            if(!$imageUserTag) {
+                ImageUserTag::create([
+                    'image_id' => $image->id,
+                    'tag_id' => $tag->id,
+                    'user_id' => $user->id
+                ]);
+            }
+        }
+
+        // remove tags that exist that weren't in the payload
+        $deprecatedUserTags = ImageUserTag::where('image_id', $image->id)->where('user_id', $user->id)->whereNotIn('tag_id', $tagIds);
+        $deprecatedUserTags->delete();
+
+        $image->refresh();
+
+        return new ImageUserResource($image);
     }
 
     /**

@@ -103,7 +103,7 @@ class AuthTest extends TestCase
         $response = $this->actingAs($this->user)->postJson("api/user/image", [
             'image' => $upload,
             'tags' => ['test']
-        ])->dump()->assertSuccessful();
+        ])->assertSuccessful();
 
         $image = $response->decodeResponseJson();
 
@@ -111,10 +111,14 @@ class AuthTest extends TestCase
         $hash = hash_file('sha1', $upload);
         $ext = $upload->extension();
 
+        // assert url is computed as expected
         $this->assertEquals($image['data']['url'], "{$baseUrl}/imagent/{$hash}.{$ext}");
+        // assert tag is added
         $this->assertEquals($image['data']['tags'][0]['tag'], "test");
+        // assert user tag assosciation is created
         $this->assertEquals($image['data']['user_tags'][0]['tag'], "test");
 
+        // uploading the same image should fail
         $response = $this->actingAs($this->user)->postJson("api/user/image", [
             'image' => $upload,
         ])->assertStatus(422);
@@ -123,17 +127,57 @@ class AuthTest extends TestCase
 
         $response = $this->actingAs($newUser)->postJson("api/user/image", [
             'image' => $upload,
+            'tags' => ['test']
+        ])->assertSuccessful();
+
+        $image = $response->decodeResponseJson();
+
+        $imageId = $image['data']['id'];
+        $imageUsers = ImageUser::where('image_id', $imageId)->get();
+
+        $initialImageUserTags = ImageUserTag::where('image_id', $imageId)->where('user_id', $this->user->id)->get();
+        $newUserImageTagUsers = ImageUserTag::where('image_id', $imageId)->where('user_id', $newUser->id)->get();
+
+        // assert same image has 2 users
+        $this->assertEquals($imageUsers->count(), 2);
+        // assert image has user tags per user
+        $this->assertEquals($initialImageUserTags->count(), 1);
+        $this->assertEquals($newUserImageTagUsers->count(), 1);
+    }
+
+    /**
+     * UPDATE api/user/image/{image}
+     */
+    public function test_update_image()
+    {
+        Storage::fake('digitalocean');
+
+        $upload = new UploadedFile(resource_path('test-files/p07ryyyj.jpg'), 'p07ryyyj.jpg', null, null, true);
+        $response = $this->actingAs($this->user)->postJson("api/user/image", [
+            'image' => $upload,
+            'tags' => ['test_1', 'test_2']
         ])->assertSuccessful();
 
         $image = $response->decodeResponseJson();
         $imageId = $image['data']['id'];
-        $imageUsers = ImageUser::where('image_id', $imageId)->get();
-        $initialImageUserTags = ImageUserTag::where('image_id', $imageId)->where('user_id', $this->user->id)->get();
-        $newUserImageTagUsers = ImageUserTag::where('image_id', $imageId)->where('user_id', $newUser->id)->get();
 
-        $this->assertEquals($imageUsers->count(), 2);
-        $this->assertEquals($initialImageUserTags->count(), 1);
-        $this->assertEquals($newUserImageTagUsers->count(), 1);
+        $response = $this->actingAs($this->user)->putJson("api/user/image/{$imageId}", [
+            'tags' => ['test_2', 'test_3']
+        ])->assertSuccessful();
+
+        $image = $response->decodeResponseJson();
+
+        // check new tags are added
+        $this->assertTrue(Utils::arraySome($image['data']['user_tags'], function ($value) {
+            return $value['tag'] === 'test_2';
+        }));
+        $this->assertTrue(Utils::arraySome($image['data']['user_tags'], function ($value) {
+            return $value['tag'] === 'test_3';
+        }));
+        // check old tag was deleted
+        $this->assertFalse(Utils::arraySome($image['data']['user_tags'], function ($value) {
+            return $value['tag'] === 'test_1';
+        }));
     }
 
     /**
@@ -157,11 +201,13 @@ class AuthTest extends TestCase
         $hash = hash_file('sha1', $upload);
         $ext = $upload->extension();
 
+        // assert image was removed from cdn
         $this->assertTrue(!Storage::disk('digitalocean')->exists("imagent/{$hash}.{$ext}"));
 
         $imageTags = ImageTag::where('image_id', $imageId)->get();
         $imageUserTags = ImageUserTag::where('image_id', $imageId)->where('user_id', $this->user->id)->get();
 
+        // assert all image user tag assosciations were deleted
         $this->assertEquals($imageTags->count(), 0);
         $this->assertEquals($imageUserTags->count(), 0);
 
@@ -173,6 +219,7 @@ class AuthTest extends TestCase
 
         $response = $this->actingAs($newUser)->postJson("api/user/image", [
             'image' => $upload,
+            'tags' => ['test']
         ])->assertSuccessful();
 
         $image = $response->decodeResponseJson();
@@ -182,6 +229,7 @@ class AuthTest extends TestCase
 
         $image = Image::find($imageId);
 
+        // assert image not deleted when there is still a user assosciateds
         $this->assertNotNull($image);
         $this->assertTrue(Storage::disk('digitalocean')->exists("imagent/{$hash}.{$ext}"));
     }
