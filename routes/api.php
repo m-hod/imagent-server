@@ -16,11 +16,11 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:api')->get('/user', function (Request $request) {
+Route::middleware('auth')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::middleware(['verified', 'auth:api'])->group(function () {
+Route::middleware(['verified', 'auth'])->group(function () {
     Route::get('user/tags', [TagController::class, 'index']);
     Route::post('user/tag', [TagController::class, 'store']);
     Route::delete('user/tag/{tag}', [TagController::class, 'destroy']);
