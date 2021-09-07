@@ -233,4 +233,28 @@ class AuthTest extends TestCase
         $this->assertNotNull($image);
         $this->assertTrue(Storage::disk('digitalocean')->exists("imagent/{$hash}.{$ext}"));
     }
+
+    /**
+     * GET api/user/images?tags=""
+     */
+    public function test_get_images()
+    {
+        Storage::fake('digitalocean');
+
+        $upload = new UploadedFile(resource_path('test-files/p07ryyyj.jpg'), 'p07ryyyj.jpg', null, null, true);
+
+        $this->actingAs($this->user)->postJson("api/user/image", [
+            'image' => $upload,
+            'tags' => ['test']
+        ])->assertSuccessful();
+
+        $tags = ['test'];
+        $encodedTags = json_encode($tags);
+
+        $response = $this->actingAs($this->user)->getJson("api/user/images?tags={$encodedTags}")->assertSuccessful();
+
+        $images = $response->decodeResponseJson();
+
+        $this->assertEquals(count($images['data']), 1);
+    }
 }

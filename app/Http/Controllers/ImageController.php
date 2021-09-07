@@ -23,14 +23,23 @@ class ImageController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index()
+    public function index(Request $request)
     {
-        // $user = Auth::user();
-        // $userImages = ImageUser::where('user_id', $user->id)->get();
+        $request->validate([
+            'tags' => ['sometimes', 'string'],
+        ]);
 
-        dump(Storage::disk('digitalocean')->files('imagent'));
+        $tags = json_decode(request()->input('tags', "[]"));
 
-        // return ImageUserResource::collection($userImages);
+        $user = Auth::user();
+
+        $images = Image::whereHas('users', function ($query) use ($user) {
+            $query->where('users.id', $user->id);
+        })->whereHas('tags', function ($query) use ($tags) {
+            $query->whereIn('tags.tag', $tags);
+        })->get();
+
+        return ImageUserResource::collection($images);
     }
 
     /**
