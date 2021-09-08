@@ -26,6 +26,7 @@ return [
         'reset-password',
         'user/profile-information',
         'email/verification-notification',
+        'home'
     ],
 
     'allowed_methods' => ['*'],
