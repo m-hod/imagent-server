@@ -71,6 +71,8 @@ class AuthTest extends TestCase
         $firstTagId = $tags->first()->id;
         $lastTagId = $tags->last()->id;
 
+        $altUser = User::factory()->create();
+
         UserTag::factory()->create([
             'user_id' => $user->id,
             'tag_id' => $firstTagId
@@ -80,14 +82,13 @@ class AuthTest extends TestCase
             'tag_id' => $lastTagId,
         ]);
         UserTag::factory()->create([
-            'user_id' => User::inRandomOrder()->first()->id,
+            'user_id' => $altUser->id,
             'tag_id' => $lastTagId,
         ]);
 
         $this->actingAs($this->user)->deleteJson("api/user/tag/{$firstTagId}")->assertSuccessful();
-
         $this->assertEmpty(UserTag::where('user_id', $user->id)->where('tag_id', $firstTagId)->get());
-        $this->actingAs($this->user)->deleteJson("api/user/tag/{$tags->last()->id}")->assertSuccessful();
+        $this->actingAs($this->user)->deleteJson("api/user/tag/{$lastTagId}")->assertSuccessful();
         $this->assertEmpty(UserTag::where('user_id', $user->id)->where('tag_id', $lastTagId)->get());
         $this->assertNotEmpty(Tag::find($lastTagId));
     }
